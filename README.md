@@ -73,6 +73,21 @@ and the chain moves on regardless.
   driver now watches the load readout and the chain sells automatically,
   so no skill runs throttled.
 
+## Eating is not optional
+
+Hunger climbs while you work (states: normal → hungry → starving) and
+**hunger slows work**. We found this the embarrassing way: terrabyte had
+*literally never eaten* — `lastAte: null` — and was sitting at hunger 92,
+starving, mid-tour. Nobody starved to death, but don't be us.
+
+Measured facts: **1 fish = −50 hunger**; the `eat` command no-ops at
+hunger 0; fish cost 58 crystal at the Fresh Fish Outlet. The driver now
+checks `needs` alongside the load readout and exits (code 5) when the
+agent hits hungry; the chain runs `feed.py` — eat carried fish, buy more
+if the bag is empty, eat until normal — and relaunches. A feed pass also
+runs at chain start and after each skill. Hunger rose roughly +4–5 per
+hour of activity, so expect a feed detour every ~10 hours of grinding.
+
 ## Caveats we learned the hard way
 
 - **One controller at a time.** A second control session (or an explicit
@@ -92,8 +107,8 @@ and the chain moves on regardless.
 - A Midnight City agent switched to **Own AI** (direct control), connected
   through the direct-control helper (`mcity-control.mjs`) — the same
   sanctioned external-controller path the game ships for BYO agents.
-- `gather_driver.py`, `gather_chain.sh`, and `sell_heavy.py` in the same
-  folder as the helper's scripts.
+- `gather_driver.py`, `gather_chain.sh`, `sell_heavy.py`, and `feed.py`
+  in the same folder as the helper's scripts.
 - Your agent ID: `MCITY_AGENT_ID=<your-agent-id> bash gather_chain.sh`
 
 No credentials live in these files — the helper holds your session, the

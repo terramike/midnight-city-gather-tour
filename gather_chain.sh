@@ -17,6 +17,12 @@ sell() {
   echo "[$(date +%H:%M:%S)] chain: sell pass done" >> "$LOG"
 }
 
+feed() {
+  echo "[$(date +%H:%M:%S)] chain: feed pass" >> "$LOG"
+  python3 feed.py >> "$LOG" 2>&1
+  echo "[$(date +%H:%M:%S)] chain: feed pass done" >> "$LOG"
+}
+
 skill() { # skill source1 [source2 ...]
   local sk="$1"; shift
   echo "[$(date +%H:%M:%S)] chain: SKILL $sk -> level 99 via: $*" >> "$LOG"
@@ -30,11 +36,17 @@ skill() { # skill source1 [source2 ...]
         echo "[$(date +%H:%M:%S)] chain: $sk via $src finished (exit $rc)" >> "$LOG"
         if [ "$rc" -eq 0 ]; then
           sell
+          feed
           echo "[$(date +%H:%M:%S)] chain: SKILL $sk LEVEL 99 DONE" >> "$LOG"
           return 0
         fi
         if [ "$rc" -eq 4 ]; then
           sell
+          progress=1
+          continue
+        fi
+        if [ "$rc" -eq 5 ]; then
+          feed
           progress=1
           continue
         fi
@@ -51,6 +63,7 @@ skill() { # skill source1 [source2 ...]
   done
 }
 
+feed  # start fed
 sell  # start light
 
 skill mining ore_vein

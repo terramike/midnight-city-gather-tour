@@ -9,7 +9,8 @@ time, always picking the nearest available node, verifying XP via
 progression reads. Writes progress to ~/.midnight-city/gather-<skill>.json
 after every pull.
 Exit 0 = target reached, 2 = stalled (no XP gain for 15 min),
-3 = gave up (time cap), 4 = overburdened (chain sells, then relaunches).
+3 = gave up (time cap), 4 = overburdened (chain sells, then relaunches),
+5 = hungry/starving (chain feeds the agent, then relaunches).
 """
 import json, os, subprocess, sys, time
 
@@ -104,6 +105,13 @@ def inventory_load():
     return f"{d['load']['state']} {d['load']['workSpeedPercent']}%"
 
 
+def hunger_state():
+    d = run_helper("needs", AGENT)
+    if not d:
+        return None
+    return d["hunger"]["state"]
+
+
 def reconnect():
     try:
         run_helper("connect", AGENT, timeout=30)
@@ -193,6 +201,12 @@ while time.time() - start < max_minutes * 60:
                 save()
                 log("OVERBURDENED: exiting 4 so the chain can sell the heavy goods")
                 sys.exit(4)
+            hunger = hunger_state()
+            if hunger in ("hungry", "starving"):
+                state["status"] = "hungry"
+                save()
+                log(f"HUNGRY ({hunger}): exiting 5 so the chain can feed the agent")
+                sys.exit(5)
         save()
     else:
         # Node may be reserved/depleted by someone else; bench it briefly.
