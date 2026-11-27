@@ -7,6 +7,10 @@ log and ore have merchant buyers:
   log: 5 -> 2 crystal (Merchant West)   ore: 3 -> 4 crystal (Merchant East)
 Everything else in the bag is left untouched.
 
+Reserve (2026-11-27, rotation system): crafting joined the rotation, and
+saw_planks / smelt_metal_bar eat logs and ore. Keep a small working
+reserve of each for craft legs and sell only full batches above it.
+
 Usage: python3 sell_heavy.py [agentId]
 Exit 0 always (a failed sale is logged, never fatal to the chain).
 """
@@ -27,6 +31,9 @@ SELLABLES = {
     "log": (5, ["Bison Valley Merchant West", "Central Merchant West"]),
     "ore": (3, ["Bison Valley Merchant East", "Central Merchant East"]),
 }
+
+# Working stock kept for craft legs (saw_planks, smelt_metal_bar).
+RESERVE = {"log": 30, "ore": 30}
 
 
 def log(msg):
@@ -67,11 +74,12 @@ def pick_merchant(candidates, space):
 def sell(item, batch, merchant):
     inv = inventory()["inventory"]
     have = inv.get(item, 0)
-    qty = (have // batch) * batch
+    reserve = RESERVE.get(item, 0)
+    qty = (max(0, have - reserve) // batch) * batch
     if qty <= 0:
-        log(f"{item}: {have} held, no full batch to sell")
+        log(f"{item}: {have} held (reserve {reserve}), no full batch to sell")
         return
-    log(f"selling {qty} {item} to {merchant} (holding {have})")
+    log(f"selling {qty} {item} to {merchant} (holding {have}, reserve {reserve})")
     try:
         run_control("trade", merchant, item, str(qty), timeout=60)
     except Exception as e:

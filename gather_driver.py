@@ -6,8 +6,10 @@ Usage: gather_driver.py <skill> <target> [maxMinutes]
 Discovers the skill's sources from live progression and always gathers
 from the highest tier the agent's level unlocks (higher tiers pay far
 more XP per pull: ~29 at req 1, ~69 at req 11, ~109 at req 21). Steps up
-automatically as the agent levels. <target> is a total-XP number or a
-level target like L99.
+automatically as the agent levels. <target> is a total-XP number, a
+level target like L99, or "next" (current level + 1, resolved at start;
+used by the rotation chain for +1-level legs). Works for any
+gather-trained skill, including hacking (terminal sources).
 
 Issues `gather` calls through mcity-control.mjs one at a time, always
 picking the nearest available node of the active source, verifying XP
@@ -15,7 +17,8 @@ via progression reads. Writes progress to
 ~/.midnight-city/gather-<skill>.json after every pull.
 Exit 0 = target reached, 2 = stalled (no XP gain for 15 min),
 3 = gave up (time cap), 4 = overburdened (chain sells, then relaunches),
-5 = hungry/starving (chain feeds the agent, then relaunches).
+5 = hungry/starving (chain feeds the agent, then relaunches),
+6 = already level 99 (only possible with target "next").
 """
 import json, os, subprocess, sys, time
 
@@ -26,7 +29,10 @@ STATE_DIR = os.path.expanduser("~/.midnight-city")
 
 skill = sys.argv[1]
 raw_target = sys.argv[2]
-if raw_target.upper().startswith("L"):
+leg_mode = raw_target.lower() == "next"
+if leg_mode:
+    target_level, target_xp = None, None  # resolved after first read
+elif raw_target.upper().startswith("L"):
     target_level, target_xp = int(raw_target[1:]), None
 else:
     target_level, target_xp = None, int(raw_target)
@@ -159,6 +165,17 @@ if xp is None:
     xp, level, pos, sources = progression()
 state["xp"] = xp
 state["level"] = level
+if leg_mode:
+    if level is not None and level >= 99:
+        state["status"] = "done"
+        state["targetLevel"] = 99
+        save()
+        log(f"ALREADY 99: {skill} is level 99; leg skipped")
+        sys.exit(6)
+    if level is not None:
+        target_level = level + 1
+        state["targetLevel"] = target_level
+        log(f"leg target resolved: {skill} L{level} -> L{target_level}")
 active, tier = choose_source(sources, level, None)
 if active:
     state["sourceId"] = active["sourceId"]
