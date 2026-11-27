@@ -1,12 +1,11 @@
 #!/bin/bash
-# Gathering tour chain v3 (Mike 2026-11-26): every gathering skill to MAX
-# (level 99), not just level 3. Per skill, rotate its level-1 sources in
-# long runs until the driver reports the level reached (exit 0).
-# Exit 4 = overburdened -> sell the heavy sellables and relaunch the same
-# source. Exit 3 (24h run cap) counts as progress -> next source.
-# Exit 2 (stall) -> next source; a full rotation of pure stalls marks the
-# skill STUCK and the chain moves on (the watcher flags it).
-# Rare items are never sold.
+# Gathering tour chain v4 (2026-11-26): every gathering skill to MAX
+# (level 99). The driver is tier-aware: it discovers each skill's sources
+# from live progression and always gathers the highest tier the agent's
+# level unlocks (req 1 ~29 XP/pull, req 11 ~69, req 21 ~109, ...).
+# Chain duties: feed at start and after each skill, sell the heavy
+# sellables (driver exit 4), feed on hunger (exit 5), relaunch the skill
+# on stall/timeout exits (2/3). Rare items are never sold.
 set -u
 cd "$(dirname "$0")"
 LOG="$HOME/.midnight-city/gather-chain.log"
@@ -23,56 +22,38 @@ feed() {
   echo "[$(date +%H:%M:%S)] chain: feed pass done" >> "$LOG"
 }
 
-skill() { # skill source1 [source2 ...]
-  local sk="$1"; shift
-  echo "[$(date +%H:%M:%S)] chain: SKILL $sk -> level 99 via: $*" >> "$LOG"
+skill() { # skill
+  local sk="$1"
+  echo "[$(date +%H:%M:%S)] chain: SKILL $sk -> level 99 (tier-aware)" >> "$LOG"
   while true; do
-    local progress=0
-    for src in "$@"; do
-      while true; do
-        echo "[$(date +%H:%M:%S)] chain: $sk via $src -> L99" >> "$LOG"
-        python3 gather_driver.py "$src" "$sk" L99 1440
-        rc=$?
-        echo "[$(date +%H:%M:%S)] chain: $sk via $src finished (exit $rc)" >> "$LOG"
-        if [ "$rc" -eq 0 ]; then
-          sell
-          feed
-          echo "[$(date +%H:%M:%S)] chain: SKILL $sk LEVEL 99 DONE" >> "$LOG"
-          return 0
-        fi
-        if [ "$rc" -eq 4 ]; then
-          sell
-          progress=1
-          continue
-        fi
-        if [ "$rc" -eq 5 ]; then
-          feed
-          progress=1
-          continue
-        fi
-        if [ "$rc" -eq 3 ]; then
-          progress=1
-        fi
-        break
-      done
-    done
-    if [ "$progress" -eq 0 ]; then
-      echo "[$(date +%H:%M:%S)] chain: SKILL $sk STUCK (all sources stalled)" >> "$LOG"
-      return 1
-    fi
+    echo "[$(date +%H:%M:%S)] chain: $sk driver -> L99" >> "$LOG"
+    python3 gather_driver.py "$sk" L99 10080
+    rc=$?
+    echo "[$(date +%H:%M:%S)] chain: $sk driver finished (exit $rc)" >> "$LOG"
+    case "$rc" in
+      0)
+        sell
+        feed
+        echo "[$(date +%H:%M:%S)] chain: SKILL $sk LEVEL 99 DONE" >> "$LOG"
+        return 0
+        ;;
+      4) sell ;;
+      5) feed ;;
+      *) sleep 60 ;;  # stall/timeout: brief pause, then relaunch
+    esac
   done
 }
 
 feed  # start fed
 sell  # start light
 
-skill mining ore_vein
-skill woodcutting tree_stand
-skill fishing canal_eddy river_eel_weir moon_oyster_reef roofwater_cistern
-skill farming mycelium_nursery rain_wheat_deck rooftop_tomato_bed violet_herb_plot
-skill scavenging arcology_refuse_dock drone_wreckfield floodwall_rubble market_parts_bin transit_scrap_heap
-skill agility skybridge_rigging
-skill infiltration patrol_locker
-skill energy static_substation
+skill mining
+skill woodcutting
+skill fishing
+skill farming
+skill scavenging
+skill agility
+skill infiltration
+skill energy
 
 echo "[$(date +%H:%M:%S)] chain: ALL DONE" >> "$LOG"

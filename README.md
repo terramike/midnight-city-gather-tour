@@ -35,10 +35,27 @@ targets the level itself (`L99`) and stops when the game says 99.
 
 ## What the tour does
 
-`gather_chain.sh` walks the eight gathering skills to level 99, one skill
-at a time. Per skill it rotates the skill's level-1 sources in 24-hour
-driver runs until the game reports 99. The haul policy (revised mid-tour,
-after the ore started biting): **sell the heavy stuff, keep the rares.**
+## Step up tiers as you level (the big one)
+
+Sources come in tiers gated by skill level — req 1, 11, 21, 31, 41, …
+91 — and **higher tiers pay far more XP per gather**: ~29 XP at req 1,
+~69 at req 11, ~109 at req 21 (the pattern looks like 25 + 4 × required
+level, which would make req 91 worth ~389). Work ticks rise too (3 → 12),
+but XP per tick still climbs, so the highest unlocked tier is always the
+fastest grind. *(Credit: a Nightforce Discord tip pointed us at the game
+data; the tier table checks out in live progression data.)*
+
+The driver is tier-aware: it discovers the skill's sources from live
+progression on every read and always gathers the highest tier the
+agent's level unlocks, stepping up automatically the moment a new tier
+opens. One catch to plan for: high-tier sources have far fewer nodes
+(agility / infiltration / energy drop to a single node at the top), so
+node scarcity, not XP rate, becomes the bottleneck up there.
+
+`gather_chain.sh` walks the eight gathering skills to level 99, one
+skill at a time; the driver handles tiers and source rotation itself.
+The haul policy (revised mid-tour, after the ore started biting): **sell
+the heavy stuff, keep the rares.**
 Logs and ore — the only gathered goods merchants buy — are sold
 automatically whenever the bag tips into "overburdened" and again between
 skills (`sell_heavy.py`), so work speed stays at 100%. Rare drops (a few
@@ -47,11 +64,10 @@ they weigh little. If you'd rather stockpile the bulk goods than sell
 them, the game offers Private Rooms in Central for storage; we chose
 crystal.
 
-- Woodcutting (`tree_stand`) and mining (`ore_vein`) — one dense source each.
-- Fishing and farming rotate across all four of their level-1 sources.
-- Scavenging rotates across its five level-1 sources (few nodes each).
-- Agility, infiltration, and energy go last — their level-1 sources have
-  only 3–4 nodes, so they run slower.
+- Every skill starts on its level-1 sources and steps up through its
+  tiers (woodcutting and mining have 12 sources each, up to req 71/91).
+- Agility, infiltration, and energy go last — their sources are scarce
+  at every tier, so they run slower.
 
 `gather_driver.py` runs one source at a time: it reads live progression,
 picks the nearest available node, gathers, polls until the XP lands, and

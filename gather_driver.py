@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Serial gather driver for Midnight City progression sources.
+"""Tier-aware serial gather driver for Midnight City progression sources.
 
-Usage: gather_driver.py <sourceId> <skill> <target> [maxMinutes]
+Usage: gather_driver.py <skill> <target> [maxMinutes]
 
-<target> is either a total-XP number (e.g. 16704) or a level target
-(e.g. L99). Issues `gather` calls through mcity-control.mjs one at a
-time, always picking the nearest available node, verifying XP via
-progression reads. Writes progress to ~/.midnight-city/gather-<skill>.json
-after every pull.
+Discovers the skill's sources from live progression and always gathers
+from the highest tier the agent's level unlocks (higher tiers pay far
+more XP per pull: ~29 at req 1, ~69 at req 11, ~109 at req 21). Steps up
+automatically as the agent levels. <target> is a total-XP number or a
+level target like L99.
+
+Issues `gather` calls through mcity-control.mjs one at a time, always
+picking the nearest available node of the active source, verifying XP
+via progression reads. Writes progress to
+~/.midnight-city/gather-<skill>.json after every pull.
 Exit 0 = target reached, 2 = stalled (no XP gain for 15 min),
 3 = gave up (time cap), 4 = overburdened (chain sells, then relaunches),
 5 = hungry/starving (chain feeds the agent, then relaunches).
@@ -19,21 +24,21 @@ CONTROL = os.path.join(HELPER_DIR, "mcity-control.mjs")
 AGENT = os.environ.get("MCITY_AGENT_ID", "YOUR-AGENT-ID")
 STATE_DIR = os.path.expanduser("~/.midnight-city")
 
-source_id, skill = sys.argv[1], sys.argv[2]
-raw_target = sys.argv[3]
+skill = sys.argv[1]
+raw_target = sys.argv[2]
 if raw_target.upper().startswith("L"):
     target_level, target_xp = int(raw_target[1:]), None
 else:
     target_level, target_xp = None, int(raw_target)
-max_minutes = int(sys.argv[4]) if len(sys.argv) > 4 else 360
+max_minutes = int(sys.argv[3]) if len(sys.argv) > 3 else 360
 progress_path = os.path.join(STATE_DIR, f"gather-{skill}.json")
 log_path = os.path.join(STATE_DIR, f"gather-{skill}.log")
 
 start = time.time()
-state = {"sourceId": source_id, "skill": skill, "targetXp": target_xp,
-         "targetLevel": target_level, "xp": None, "level": None,
-         "pulls": 0, "startedAt": start, "updatedAt": start,
-         "status": "running", "load": None}
+state = {"sourceId": None, "tier": None, "skill": skill,
+         "targetXp": target_xp, "targetLevel": target_level,
+         "xp": None, "level": None, "pulls": 0, "startedAt": start,
+         "updatedAt": start, "status": "running", "load": None}
 
 
 def log(msg):
@@ -56,15 +61,43 @@ def run_helper(*args, timeout=60):
 
 
 def progression():
+    """Return (xp, level, position, sources) for this skill.
+
+    sources: list of dicts {sourceId, requiredLevel, availableNodeIds}
+    for every source belonging to the skill.
+    """
     d = run_helper("progression", AGENT)
     if not d:
-        return None, [], None, None
+        return None, None, None, []
     entry = d["skills"][skill]
-    nodes = []
+    sources = []
     for s in d["capabilities"]["sources"]:
-        if s.get("sourceId") == source_id:
-            nodes = s.get("availableNodeIds", [])
-    return entry["xp"], nodes, d["agent"]["position"], entry["level"]
+        if s.get("skill") == skill:
+            sources.append({
+                "sourceId": s["sourceId"],
+                "requiredLevel": s.get("requiredLevel", 1),
+                "availableNodeIds": s.get("availableNodeIds", []),
+            })
+    return entry["xp"], entry["level"], d["agent"]["position"], sources
+
+
+def choose_source(sources, level, current_id):
+    """Highest unlocked tier with available nodes; stick with the current
+    source while it still qualifies (same tier, nodes left)."""
+    unlocked = [s for s in sources if s["requiredLevel"] <= (level or 1)]
+    if not unlocked:
+        return None, None
+    tiers = sorted({s["requiredLevel"] for s in unlocked}, reverse=True)
+    for tier in tiers:
+        in_tier = [s for s in unlocked
+                   if s["requiredLevel"] == tier and s["availableNodeIds"]]
+        if not in_tier:
+            continue
+        for s in in_tier:
+            if s["sourceId"] == current_id:
+                return s, tier
+        return max(in_tier, key=lambda s: len(s["availableNodeIds"])), tier
+    return None, tiers[0]
 
 
 def target_reached(xp, level):
@@ -119,15 +152,19 @@ def reconnect():
         pass
 
 
-log(f"driver start: {source_id} / {skill} -> {raw_target}")
-xp, nodes, pos, level = progression()
+log(f"driver start: {skill} -> {raw_target} (tier-aware)")
+xp, level, pos, sources = progression()
 if xp is None:
     reconnect()
-    xp, nodes, pos, level = progression()
+    xp, level, pos, sources = progression()
 state["xp"] = xp
 state["level"] = level
+active, tier = choose_source(sources, level, None)
+if active:
+    state["sourceId"] = active["sourceId"]
+    state["tier"] = tier
 save()
-log(f"initial xp={xp} level={level}, nodes={len(nodes)}")
+log(f"initial xp={xp} level={level}, source={state['sourceId']} tier={tier}")
 
 bad_nodes = {}
 last_gain_at = time.time()
@@ -144,23 +181,32 @@ while time.time() - start < max_minutes * 60:
         save()
         log(f"STALLED: no XP gain for 15 min at xp={xp}")
         sys.exit(2)
-    if not nodes:
-        log("no available nodes; waiting 30s for regen")
+    active, tier = choose_source(sources, level, state["sourceId"])
+    if active is None:
+        log("no source with available nodes; waiting 30s for regen")
         time.sleep(30)
-        xp, nodes, pos, level = progression()
+        xp, level, pos, sources = progression()
         if xp is not None:
             state["xp"] = xp
             state["level"] = level
             save()
         continue
+    if active["sourceId"] != state["sourceId"]:
+        log(f"SOURCE SWITCH: {state['sourceId']} -> {active['sourceId']} "
+            f"(tier req {tier}, skill level {level})")
+        state["sourceId"] = active["sourceId"]
+        state["tier"] = tier
+        bad_nodes = {}
+        save()
+    nodes = active["availableNodeIds"]
     node = pick_node(nodes, pos, bad_nodes)
     if node is None:
         time.sleep(15)
-        xp, nodes, pos, level = progression()
+        xp, level, pos, sources = progression()
         continue
     before = xp
     try:
-        res = run_helper("gather", source_id, node, timeout=45)
+        res = run_helper("gather", state["sourceId"], node, timeout=45)
         outcome = (res or {}).get("outcome", {})
         confirmed = outcome.get("confirmed")
     except Exception as e:
@@ -171,12 +217,12 @@ while time.time() - start < max_minutes * 60:
     # If not confirmed in the helper's window, poll XP briefly.
     gained = False
     for wait in range(9):
-        xp2, nodes2, pos2, level2 = progression()
+        xp2, level2, pos2, sources2 = progression()
         if xp2 is not None:
             xp = xp2
             level = level2
-            if nodes2:
-                nodes = nodes2
+            if sources2:
+                sources = sources2
             if pos2:
                 pos = pos2
             if before is not None and xp > before:
@@ -191,7 +237,7 @@ while time.time() - start < max_minutes * 60:
         state["level"] = level
         last_gain_at = time.time()
         if xp != last_xp:
-            log(f"xp {last_xp} -> {xp} (pull {state['pulls']})")
+            log(f"xp {last_xp} -> {xp} (+{xp - last_xp}, pull {state['pulls']})")
             last_xp = xp
         if state["pulls"] % 15 == 0:
             state["load"] = inventory_load()
