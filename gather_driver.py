@@ -6,7 +6,8 @@ Usage: gather_driver.py <sourceId> <skill> <targetXp> [maxMinutes]
 Issues `gather` calls through mcity-control.mjs one at a time, rotating
 across the source's available nodes, verifying XP via progression reads.
 Writes progress to ~/.midnight-city/gather-<skill>.json after every pull.
-Exit 0 = target reached, 2 = stalled (no XP gain for 15 min), 3 = gave up.
+Exit 0 = target reached, 2 = stalled (no XP gain for 15 min), 3 = gave up,
+4 = overburdened (chain sells the heavy goods, then relaunches).
 """
 import json, os, subprocess, sys, time
 
@@ -169,6 +170,11 @@ while time.time() - start < max_minutes * 60:
         if state["pulls"] % 15 == 0:
             state["load"] = inventory_load()
             log(f"load: {state['load']}")
+            if state["load"] and state["load"].startswith("overburdened"):
+                state["status"] = "overburdened"
+                save()
+                log("OVERBURDENED: exiting 4 so the chain can sell the heavy goods")
+                sys.exit(4)
         save()
     else:
         # Node may be reserved/depleted by someone else; bench it briefly.

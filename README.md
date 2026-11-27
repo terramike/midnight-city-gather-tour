@@ -28,9 +28,15 @@ jumps). At full pace that's ~45–50 minutes per skill.
 
 ## What the tour does
 
-`gather_chain.sh` walks the eight gathering skills to level 3 in order,
-keeping **every item** gathered (nothing is sold — the point is stockpiling
-each trade's items in case they matter later):
+`gather_chain.sh` walks the eight gathering skills to level 3 in order.
+The haul policy (revised mid-tour, after the ore started biting): **sell
+the heavy stuff, keep the rares.** Logs and ore — the only gathered goods
+merchants buy — are sold automatically whenever the bag tips into
+"overburdened" and again between skills (`sell_heavy.py`), so work speed
+stays at 100%. Rare drops (a few percent per pull at some sources) and
+everything unsellable ride along — they weigh little. If you'd rather
+stockpile the bulk goods than sell them, the game offers Private Rooms in
+Central for storage; we chose crystal.
 
 - Woodcutting (`tree_stand`) and mining (`ore_vein`) — one dense source each.
 - Fishing and farming are **staged across all four** of their level-1
@@ -53,9 +59,11 @@ and the chain moves on regardless.
   banked from selling meme coins along the way.
 - Woodcutting: level 3 in ~95 minutes of driving (including the slow
   first version of the driver — the nearest-node fix was the unlock).
-- Mining runs slower: ore is heavy. A full bag drops work speed to 33%
-  (overburdened), which stretches the skill to ~2 hours. Selling or banking
-  the ore would fix it; we're keeping everything on purpose.
+- Mining is where the weight bites: 567 banked logs plus 91 ore dropped
+  work speed to 33% (overburdened). Selling the sellable stack — 565 logs
+  and 90 ore — paid 346 crystal and put speed straight back to 100%. The
+  driver now watches the load readout and the chain sells automatically,
+  so no skill runs throttled.
 
 ## Caveats we learned the hard way
 
@@ -76,8 +84,8 @@ and the chain moves on regardless.
 - A Midnight City agent switched to **Own AI** (direct control), connected
   through the direct-control helper (`mcity-control.mjs`) — the same
   sanctioned external-controller path the game ships for BYO agents.
-- `gather_driver.py` and `gather_chain.sh` in the same folder as the
-  helper's scripts.
+- `gather_driver.py`, `gather_chain.sh`, and `sell_heavy.py` in the same
+  folder as the helper's scripts.
 - Your agent ID: `MCITY_AGENT_ID=<your-agent-id> bash gather_chain.sh`
 
 No credentials live in these files — the helper holds your session, the
