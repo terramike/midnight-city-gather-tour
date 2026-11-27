@@ -42,8 +42,7 @@ Sources come in tiers gated by skill level — req 1, 11, 21, 31, 41, …
 ~69 at req 11, ~109 at req 21 (the pattern looks like 25 + 4 × required
 level, which would make req 91 worth ~389). Work ticks rise too (3 → 12),
 but XP per tick still climbs, so the highest unlocked tier is always the
-fastest grind. *(Credit: a Nightforce Discord tip pointed us at the game
-data; the tier table checks out in live progression data.)*
+fastest grind. *(The tier figures check out in live progression data.)*
 
 The driver is tier-aware: it discovers the skill's sources from live
 progression on every read and always gathers the highest tier the
@@ -51,6 +50,9 @@ agent's level unlocks, stepping up automatically the moment a new tier
 opens. One catch to plan for: high-tier sources have far fewer nodes
 (agility / infiltration / energy drop to a single node at the top), so
 node scarcity, not XP rate, becomes the bottleneck up there.
+
+*(Credit for the tier tip: Beobrand Halfhand, @beobrandhalfhand on
+Discord — thanks!)*
 
 `gather_chain.sh` walks the eight gathering skills to level 99, one
 skill at a time; the driver handles tiers and source rotation itself.
