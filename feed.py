@@ -16,7 +16,7 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CONTROL = os.path.join(HERE, "mcity-control.mjs")
+CONTROL = os.environ.get("MCITY_CONTROL", os.path.join(HERE, "mcity-control.mjs"))
 AGENT = sys.argv[1] if len(sys.argv) > 1 else os.environ.get(
     "MCITY_AGENT_ID", "YOUR-AGENT-ID")
 STATE_DIR = os.path.expanduser("~/.midnight-city")

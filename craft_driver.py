@@ -21,7 +21,7 @@ the rotation chain treats 7 as a skipped leg, not a failure.
 import json, os, subprocess, sys, time
 
 HELPER_DIR = os.path.dirname(os.path.abspath(__file__))
-CONTROL = os.path.join(HELPER_DIR, "mcity-control.mjs")
+CONTROL = os.environ.get("MCITY_CONTROL", os.path.join(HELPER_DIR, "mcity-control.mjs"))
 AGENT = os.environ.get("MCITY_AGENT_ID", "YOUR-AGENT-ID")
 STATE_DIR = os.path.expanduser("~/.midnight-city")
 

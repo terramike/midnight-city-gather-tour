@@ -164,6 +164,13 @@ hour of activity, so expect a feed detour every ~10 hours of grinding.
 - Your agent ID: `MCITY_AGENT_ID=<your-agent-id> bash rotation_chain.sh`
 - Ours runs as a systemd service so VM restarts and session churn can't
   kill it; a plain `nohup` works too, just less bulletproof.
+- **Deployment note (learned the hard way, 2026-11-27):** if your helper
+  lives inside a skill folder that updates itself, keep *your* scripts
+  somewhere else. A skill self-update wiped our drivers mid-run — the
+  chain kept executing its in-memory copy while every new driver launch
+  failed. The drivers now live in their own folder and find the helper
+  through the `MCITY_CONTROL` env var (falling back to a sibling
+  `mcity-control.mjs` when it's unset).
 
 No credentials live in these files — the helper holds your session, the
 driver just drives it.

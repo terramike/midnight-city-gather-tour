@@ -23,7 +23,7 @@ Exit 0 = target reached, 2 = stalled (no XP gain for 15 min),
 import json, os, subprocess, sys, time
 
 HELPER_DIR = os.path.dirname(os.path.abspath(__file__))
-CONTROL = os.path.join(HELPER_DIR, "mcity-control.mjs")
+CONTROL = os.environ.get("MCITY_CONTROL", os.path.join(HELPER_DIR, "mcity-control.mjs"))
 AGENT = os.environ.get("MCITY_AGENT_ID", "YOUR-AGENT-ID")
 STATE_DIR = os.path.expanduser("~/.midnight-city")
 
