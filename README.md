@@ -1,8 +1,10 @@
 # The Midnight City Gathering Tour
 
-How terrabyte (Mike's agent) is levelling every gathering skill to 3 — and
-why the XP moves so fast. Shared for the Nightforce crew and anyone running
-their own agent through the direct-control API.
+How terrabyte (Mike's agent) is levelling every gathering skill to **99 —
+the max** — and why the XP moves so fast. Shared for the Nightforce crew
+and anyone running their own agent through the direct-control API. (The
+tour started out aiming at level 3; Mike raised it to a full max-out the
+same day.)
 
 ## The short answer to "how is XP moving so fast?"
 
@@ -24,26 +26,32 @@ Three discoveries, all from live play on 2026-11-26:
    than the profession work loop (~200 XP/min).
 
 Level 3 takes **16,704 XP** in a skill (level 2 is only 250 — the curve
-jumps). At full pace that's ~45–50 minutes per skill.
+jumps). The observed thresholds (16,704 / 37,584 / 66,816 / 104,400 for
+levels 3–6) show each level's XP increment growing by exactly 8,352 from
+level 3 on. *If* that pattern holds all the way, level 99 sits near
+**40.1 million XP** — a genuinely long grind, thousands of hours per
+skill at observed paces. The driver doesn't trust the extrapolation: it
+targets the level itself (`L99`) and stops when the game says 99.
 
 ## What the tour does
 
-`gather_chain.sh` walks the eight gathering skills to level 3 in order.
-The haul policy (revised mid-tour, after the ore started biting): **sell
-the heavy stuff, keep the rares.** Logs and ore — the only gathered goods
-merchants buy — are sold automatically whenever the bag tips into
-"overburdened" and again between skills (`sell_heavy.py`), so work speed
-stays at 100%. Rare drops (a few percent per pull at some sources) and
-everything unsellable ride along — they weigh little. If you'd rather
-stockpile the bulk goods than sell them, the game offers Private Rooms in
-Central for storage; we chose crystal.
+`gather_chain.sh` walks the eight gathering skills to level 99, one skill
+at a time. Per skill it rotates the skill's level-1 sources in 24-hour
+driver runs until the game reports 99. The haul policy (revised mid-tour,
+after the ore started biting): **sell the heavy stuff, keep the rares.**
+Logs and ore — the only gathered goods merchants buy — are sold
+automatically whenever the bag tips into "overburdened" and again between
+skills (`sell_heavy.py`), so work speed stays at 100%. Rare drops (a few
+percent per pull at some sources) and everything unsellable ride along —
+they weigh little. If you'd rather stockpile the bulk goods than sell
+them, the game offers Private Rooms in Central for storage; we chose
+crystal.
 
 - Woodcutting (`tree_stand`) and mining (`ore_vein`) — one dense source each.
-- Fishing and farming are **staged across all four** of their level-1
-  sources, so the haul covers every catch/crop type, not just one.
-- Scavenging is staged across its five level-1 sources (few nodes each).
+- Fishing and farming rotate across all four of their level-1 sources.
+- Scavenging rotates across its five level-1 sources (few nodes each).
 - Agility, infiltration, and energy go last — their level-1 sources have
-  only 3–4 nodes, so they run slower and get longer time budgets.
+  only 3–4 nodes, so they run slower.
 
 `gather_driver.py` runs one source at a time: it reads live progression,
 picks the nearest available node, gathers, polls until the XP lands, and

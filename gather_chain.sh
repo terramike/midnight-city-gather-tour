@@ -1,9 +1,12 @@
 #!/bin/bash
-# Gathering tour chain v2 (sell policy, Mike 2026-11-26): run the driver
-# skill by skill to level 3 (16,704 XP). Whenever the driver exits 4
-# (overburdened), sell the heavy sellable commons (logs, ore) and relaunch
-# the same stage. After each stage, sell once more so the next skill starts
-# light. Rare items are never sold.
+# Gathering tour chain v3 (Mike 2026-11-26): every gathering skill to MAX
+# (level 99), not just level 3. Per skill, rotate its level-1 sources in
+# long runs until the driver reports the level reached (exit 0).
+# Exit 4 = overburdened -> sell the heavy sellables and relaunch the same
+# source. Exit 3 (24h run cap) counts as progress -> next source.
+# Exit 2 (stall) -> next source; a full rotation of pure stalls marks the
+# skill STUCK and the chain moves on (the watcher flags it).
+# Rare items are never sold.
 set -u
 cd "$(dirname "$0")"
 LOG="$HOME/.midnight-city/gather-chain.log"
@@ -14,43 +17,49 @@ sell() {
   echo "[$(date +%H:%M:%S)] chain: sell pass done" >> "$LOG"
 }
 
-run() { # sourceId skill targetXp maxMinutes
+skill() { # skill source1 [source2 ...]
+  local sk="$1"; shift
+  echo "[$(date +%H:%M:%S)] chain: SKILL $sk -> level 99 via: $*" >> "$LOG"
   while true; do
-    echo "[$(date +%H:%M:%S)] chain: $2 via $1 -> $3 XP" >> "$LOG"
-    python3 gather_driver.py "$1" "$2" "$3" "$4"
-    rc=$?
-    echo "[$(date +%H:%M:%S)] chain: $2 via $1 finished (exit $rc)" >> "$LOG"
-    if [ "$rc" -eq 4 ]; then
-      sell
-      continue
+    local progress=0
+    for src in "$@"; do
+      while true; do
+        echo "[$(date +%H:%M:%S)] chain: $sk via $src -> L99" >> "$LOG"
+        python3 gather_driver.py "$src" "$sk" L99 1440
+        rc=$?
+        echo "[$(date +%H:%M:%S)] chain: $sk via $src finished (exit $rc)" >> "$LOG"
+        if [ "$rc" -eq 0 ]; then
+          sell
+          echo "[$(date +%H:%M:%S)] chain: SKILL $sk LEVEL 99 DONE" >> "$LOG"
+          return 0
+        fi
+        if [ "$rc" -eq 4 ]; then
+          sell
+          progress=1
+          continue
+        fi
+        if [ "$rc" -eq 3 ]; then
+          progress=1
+        fi
+        break
+      done
+    done
+    if [ "$progress" -eq 0 ]; then
+      echo "[$(date +%H:%M:%S)] chain: SKILL $sk STUCK (all sources stalled)" >> "$LOG"
+      return 1
     fi
-    break
   done
-  sell
 }
 
 sell  # start light
 
-run ore_vein mining 16704 240
-
-run canal_eddy fishing 4200 120
-run river_eel_weir fishing 8400 120
-run moon_oyster_reef fishing 12600 120
-run roofwater_cistern fishing 16704 180
-
-run mycelium_nursery farming 4200 120
-run rain_wheat_deck farming 8400 120
-run rooftop_tomato_bed farming 12600 120
-run violet_herb_plot farming 16704 180
-
-run arcology_refuse_dock scavenging 3400 120
-run drone_wreckfield scavenging 6800 120
-run floodwall_rubble scavenging 10200 120
-run market_parts_bin scavenging 13600 120
-run transit_scrap_heap scavenging 16704 180
-
-run skybridge_rigging agility 16704 300
-run patrol_locker infiltration 16704 300
-run static_substation energy 16704 300
+skill mining ore_vein
+skill woodcutting tree_stand
+skill fishing canal_eddy river_eel_weir moon_oyster_reef roofwater_cistern
+skill farming mycelium_nursery rain_wheat_deck rooftop_tomato_bed violet_herb_plot
+skill scavenging arcology_refuse_dock drone_wreckfield floodwall_rubble market_parts_bin transit_scrap_heap
+skill agility skybridge_rigging
+skill infiltration patrol_locker
+skill energy static_substation
 
 echo "[$(date +%H:%M:%S)] chain: ALL DONE" >> "$LOG"
